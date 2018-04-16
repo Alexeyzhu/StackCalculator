@@ -1,15 +1,16 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Company: Digilent Inc 2011
 // Engineer: Michelle Yu  
 //				 Josh Sackos
-// Create Date:    07/23/2012 
+//				 Muhammad Mavlyutov 
+//
+// Create Date:    	07/23/2012 
+// Last modified:		17/04/2018
 //
 // Module Name:    Decoder
-// Project Name:   PmodKYPD_Demo
-// Target Devices: Nexys3
-// Tool versions:  Xilinx ISE 14.1 
-// Description: This file defines a component Decoder for the demo project PmodKYPD. The Decoder scans
+// Project Name:   StackCalc
+// Target Devices: Max10
+// Description: This file defines a component Decoder. The Decoder scans
 //					 each column by asserting a low to the pin corresponding to the column at 1KHz. After a
 //					 column is asserted low, each row pin is checked. When a row pin is detected to be low,
 //					 the key that was pressed could be determined.
@@ -17,6 +18,7 @@
 // Revision History: 
 // 						Revision 0.01 - File Created (Michelle Yu)
 //							Revision 0.02 - Converted from VHDL to Verilog (Josh Sackos)
+//							Revision 0.03 - Added DecoderState
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // ==============================================================================================

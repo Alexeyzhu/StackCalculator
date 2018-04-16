@@ -9,16 +9,19 @@
 		E : = (equals)
 		F : clear
 	MUST first enter clear to initialize each calculation
+	
+	Authors:		a guy from GitHub
+					Muhammad Mavlyutov
 */
 
 module ffCalc (
 
-	input clk,						// clock
-	input strobe,					// active-high synchronous write enable
-	input [31:0] token,			// infix expression input
+	input clk,								// clock
+	input strobe,							// active-high synchronous write enable
+	input [31:0] token,					// infix expression input
 
-	output ready,						// active-high ready to accept next token
-	output reg [31:0] answer		// intermediate and final answers
+	output ready,							// active-high ready to accept next token
+	output reg [31:0] answer			// intermediate and final answers
 );
 
 	// functions

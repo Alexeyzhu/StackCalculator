@@ -1,3 +1,9 @@
+/*
+	The main module for Stack Calculator
+	Authors: 	a guy from GitHub
+					Muhammad Mavlyutov
+*/
+
 `timescale 1ns / 1ps
 
 module StackCalc(
@@ -28,10 +34,10 @@ module StackCalc(
 			.DecodeOut(decoded_token),
 			.DecoderState(decoder_state)
 	);
+	
 	//-----------------------------------------------
 	//			Four Function Calculator
 	//-----------------------------------------------
-
 	ffCalc ff_calc(
 		.clk(clk),
 		.strobe(strobe),
@@ -48,7 +54,8 @@ module StackCalc(
 			.segOut(seg)
 	);
 		
-		
+	// Token sender
+	// Checks decoder_state on posedge. If 1, calls puttok procedure
 	always @(posedge clk) begin
 		if (decoder_state == 1) begin
 			puttok(decoded_token);
@@ -105,6 +112,7 @@ module StackCalc(
 		$finish;
 	end
 
+	// Send token to ffcalc
 	task puttok;
 		input [31:0] value;
 		begin

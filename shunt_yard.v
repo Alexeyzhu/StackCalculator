@@ -18,6 +18,9 @@
 	stopping at the first addition or subtraction encountered.  The euquals
 	operator is special.  It will pop everything off the stack and then be
 	pushed directly to the output queue.
+	
+	Authors:		a guy from GitHub
+					Muhammad Mavlyutov
 */
 
 module ShuntingYard (
