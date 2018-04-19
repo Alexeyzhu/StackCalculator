@@ -89,7 +89,7 @@ module ffCalc (
 
 			// do calculation
 			fsm_CALC: 	if (is_number) 
-								next_state = fsm_PUSH_NUMBER;
+								 next_state = fsm_PUSH_NUMBER;
 							else 
 								next_state = is_finished ? fsm_IDLE : fsm_EXECUTE;
 
