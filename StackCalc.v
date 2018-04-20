@@ -10,7 +10,12 @@ module StackCalc(
 	input  clk,
 	inout  [7:0] JA,
 	output [31:0] answer,
-	output [6:0] seg
+	output [6:0] seg,
+	output VGA_HS,
+	output VGA_VS,
+	output [3:0] VGA_R,
+	output [3:0] VGA_G,
+	output [3:0] VGA_B
 );
 
 
@@ -72,11 +77,15 @@ module StackCalc(
 	);
 	
 	//-----------------------------------------------
-	//  		Seven Segment Display Controller
+	//  		VGA Display Controller
 	//-----------------------------------------------
-	DisplayController C1(
-			.DispVal(token),
-			.segOut(seg)
+	VGA vga(
+			.MAX10_CLK1_50(clk),
+			.VGA_HS(VGA_HS),
+			.VGA_VS(VGA_VS),
+			.VGA_R(VGA_R),
+			.VGA_G(VGA_G),
+			.VGA_B(VGA_B)
 	);
 	
 	

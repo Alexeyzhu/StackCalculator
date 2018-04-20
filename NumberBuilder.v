@@ -16,7 +16,7 @@ assign number = builder;
 assign builder_ready = state;
 
 always@(posedge clk) begin
-	if (sstrobe)
+	if (strobe)
 		builder = (builder * 4'b1010) + Token;  // build a number
 	state = 1;
 	/*case (DecodeOut)
