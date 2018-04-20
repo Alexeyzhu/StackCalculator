@@ -9,9 +9,7 @@
 		E : = (equals)
 		F : clear
 	MUST first enter clear to initialize each calculation
-	
-	Authors:		a guy from GitHub
-					Muhammad Mavlyutov
+
 */
 
 module ffCalc (
