@@ -12,7 +12,14 @@ module StackCalc(
 	input 	reset,
 	output [31:0] answer,
 	
-	output [6:0] seg 
+	output [7:0] HEX0,
+	output [7:0] HEX1,
+	output [7:0] HEX2,
+	output [7:0] HEX3,
+	output [7:0] HEX4,
+	output [7:0] HEX5,
+	
+	output [9:0] LEDR
 );
 
 	// State machine states
@@ -28,6 +35,8 @@ module StackCalc(
 	reg state = fsm_IDLE; 				// Current state
 	reg next_state = fsm_IDLE;
 	
+	assign LEDR[0] = decoder_ready;
+	
 	//-----------------------------------------------
 	//  		Keyboard Decoder
 	//-----------------------------------------------
@@ -39,7 +48,7 @@ module StackCalc(
 			.DecoderState(decoder_ready)
 	);
 	
-	wire NB_write = (state == fsm_SEND_NB && clk && decoder_ready);
+	wire NB_write = (decoder_ready);
 	
 	//-----------------------------------------------
 	//  		Number builder
@@ -47,28 +56,44 @@ module StackCalc(
 	//-----------------------------------------------
 	NumberBuilder builder(
 			.clk(clk),
-			.strobe(NB_write),
+			.strobe(decoder_ready),
 			.clear(reset),
-			.Token(NB_token_sender),
+			.Token(decoded_token),
 			.number(answer),
 			.builder_ready(builder_ready)
 	);
-	
+
 	
 	//-----------------------------------------------
 	//  		Seven Segment Display Controller
 	//-----------------------------------------------
-	DisplayController C1(
-			.DispVal(builder_ready),
-			.segOut(seg)
-	);
+	/*DisplayController C1(
+			.DispVal(answer),
+			.segOut(seg1)
+	);*/
 	
+	wire [ 31:0 ] h7segment = answer; //32'h00FFFFFF;
+	
+	assign HEX0 [7] = 1'b1;
+   assign HEX1 [7] = 1'b1;
+   assign HEX2 [7] = 1'b1;
+   assign HEX3 [7] = 1'b1;
+   assign HEX4 [7] = 1'b1;
+   assign HEX5 [7] = 1'b1;
+	
+	sm_hex_display digit_5 ( h7segment [23:20] , HEX5 [6:0] );
+   sm_hex_display digit_4 ( h7segment [19:16] , HEX4 [6:0] );
+   sm_hex_display digit_3 ( h7segment [15:12] , HEX3 [6:0] );
+   sm_hex_display digit_2 ( h7segment [11: 8] , HEX2 [6:0] );
+   sm_hex_display digit_1 ( h7segment [ 7: 4] , HEX1 [6:0] );
+   sm_hex_display digit_0 ( h7segment [ 3: 0] , HEX0 [6:0] );
 	
 	
 	//-----------------------------------------------
 	//					State Machine
 	//-----------------------------------------------
-			
+	
+	/*		
 	always @(state) begin
 		case (state)
 			fsm_IDLE : NB_token_sender <= 0;
@@ -87,6 +112,6 @@ module StackCalc(
 			default: state <= fsm_IDLE;
 			endcase
 	end
-	
+	*/
 	
 endmodule
