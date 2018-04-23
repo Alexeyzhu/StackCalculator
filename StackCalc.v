@@ -7,9 +7,12 @@
 `timescale 1ns / 1ps
 
 module StackCalc(
-	input  clk,
-	inout  [7:0] JA,
-	input 	reset,
+	input clk,
+	input [9:0] SW,
+	
+	inout [7:0] JA,
+	input [1:0] KEY,
+	
 	output [31:0] answer,
 	
 	output [7:0] HEX0,
@@ -18,25 +21,49 @@ module StackCalc(
 	output [7:0] HEX3,
 	output [7:0] HEX4,
 	output [7:0] HEX5,
-	
 	output [9:0] LEDR
 );
 
+	wire reset = !KEY[0];
+
 	// State machine states
-	parameter fsm_IDLE 			= 3'd0; 		// Waiting for new token
-	parameter fsm_SEND_NB		= 3'd1; 		// Sending token to NumberBuilder - Stage 1
-
-	wire [3:0] decoded_token;				// Token from decoder
-	reg [3:0] NB_token_sender;				// A place to store token to be sent to Number Builder
-
-	reg NB_strobe; 						// Receiver enabler for Number Builder
-	wire decoder_ready; 					// Decoder has decoded new token
-			
-	reg state = fsm_IDLE; 				// Current state
-	reg next_state = fsm_IDLE;
+	parameter s1 			= 3'd0; 	// IDLE 			Waiting for new token
+	parameter s2 			= 3'd1; 	// NEW TOKEN 	Received new token
+	parameter s3			= 3'd2; 	// SIGN 			New token is sign
+	parameter s4			= 3'd3; 	// CALC 			Calculation
+	parameter s5			= 3'd4; 	// WAIT RESET 	Result is ready, waiting for reset
 	
-	assign LEDR[0] = decoder_ready;
 	
+	// Temporal registers
+	reg [3:0] NB_token_sender;						// A place to store token to be sent to Number Builder
+	reg NB_strobe; 									// Receiver enabler for Number Builder			
+	reg [3:0] state = s1;	 							// Current state
+	reg NB_send_clear = 1'b0;
+	reg last_token_is_SIGN = 1'b1;
+	
+	
+	// Helping signals
+	wire decoder_ready; 							// Decoder has decoded new token
+	wire [3:0] decoded_token;						// Token from decoder
+	
+	wire is_number = (decoded_token >= 4'h0 && decoded_token < 4'hA) ? 1'b1 : 1'b0;
+	wire is_equal = (decoded_token == 4'hE) ? 1'b1 : 1'b0;
+	wire NB_clear = (NB_send_clear || reset) ? 1'b1 : 1'b0;
+	
+	wire NB_write = (state==s1 && decoder_ready && is_number);
+	wire BUFF_write = decoder_ready && ( (state==s1 && is_number) || (state==s3 && !is_number && !last_token_is_SIGN) );
+	
+	wire builder_ready;
+	
+	// Outputs
+	wire [384:0] vgabuff;
+	
+	assign LEDR[5] = last_token_is_SIGN;	
+	assign LEDR[7] = (is_equal);
+	assign LEDR[8] = (decoder_ready);
+	assign LEDR[9] = (is_number);
+	
+		
 	//-----------------------------------------------
 	//  		Keyboard Decoder
 	//-----------------------------------------------
@@ -47,39 +74,48 @@ module StackCalc(
 			.DecodeOut(decoded_token),
 			.DecoderState(decoder_ready)
 	);
-	
-	wire NB_write = (decoder_ready);
-	
+
+		
 	//-----------------------------------------------
 	//  		Number builder
 	//			Makes number from sequence of digits
 	//-----------------------------------------------
 	NumberBuilder builder(
 			.clk(clk),
-			.strobe(decoder_ready),
-			.clear(reset),
+			.strobe(NB_write),
+			.clear(NB_clear),
 			.Token(decoded_token),
 			.number(answer),
 			.builder_ready(builder_ready)
 	);
-
 	
 	//-----------------------------------------------
-	//  		Seven Segment Display Controller
+	//  		VGA Buffer
+	//			
 	//-----------------------------------------------
-	/*DisplayController C1(
-			.DispVal(answer),
-			.segOut(seg1)
-	);*/
+	VGABuffer buffer(
+			.clk(clk),
+			.strobe(BUFF_write),
+			.clear(reset),
+			.Token(decoded_token),
+			.buffer(vgabuff)
+	);
 	
-	wire [ 31:0 ] h7segment = answer; //32'h00FFFFFF;
+	
+	wire [ 31:0 ] h7segment = SW[0] ? vgabuff[31:0] : (SW[1] ? answer : state); //32'h00FFFFFF;
 	
 	assign HEX0 [7] = 1'b1;
-   assign HEX1 [7] = 1'b1;
+   assign HEX1 [7] = 1'b1; 
    assign HEX2 [7] = 1'b1;
    assign HEX3 [7] = 1'b1;
    assign HEX4 [7] = 1'b1;
    assign HEX5 [7] = 1'b1;
+	
+	assign LEDR[0] = state == s1;
+	assign LEDR[1] = state == s2;
+	assign LEDR[2] = state == s3;
+	assign LEDR[3] = state == s4;
+	assign LEDR[4] = state == s5;
 	
 	sm_hex_display digit_5 ( h7segment [23:20] , HEX5 [6:0] );
    sm_hex_display digit_4 ( h7segment [19:16] , HEX4 [6:0] );
@@ -91,27 +127,89 @@ module StackCalc(
 	
 	//-----------------------------------------------
 	//					State Machine
+	// s1 		= 3'd0 	IDLE 			Waiting for new token
+	// s2 		= 3'd1 	NEW TOKEN 	Received new token
+	// s3			= 3'd2 	SIGN 			New token is sign
+	// s4			= 3'd3 	CALC 			Calculation
+	// s5			= 3'd4 	WAIT RESET 	Result is ready, waiting for reset
 	//-----------------------------------------------
 	
-	/*		
-	always @(state) begin
-		case (state)
-			fsm_IDLE : NB_token_sender <= 0;
-			fsm_SEND_NB : NB_token_sender <= decoded_token;
-			default: NB_token_sender <= decoded_token;
-		endcase
+	// Acting according to step
+	always @(state or reset) begin
+	if (reset) 
+	begin
+		last_token_is_SIGN <= 1'b1;
+		NB_send_clear <= 1'b1;
 	end
-
-	
-	always @(posedge clk or posedge reset) begin
-		if (reset) state <= fsm_IDLE;
-		else
+	else
+	begin
+			NB_send_clear = 1'b0;
 			case (state)
-				fsm_IDLE: 		state <= decoder_ready ? fsm_SEND_NB : fsm_IDLE;
-				fsm_SEND_NB:	state <= builder_ready ? fsm_IDLE : fsm_SEND_NB;
-			default: state <= fsm_IDLE;
+			s1: 	begin
+						last_token_is_SIGN = 0;
+					end
+			s2:	begin
+					end
+			s3:	begin
+						last_token_is_SIGN = 1;
+						NB_send_clear = 1'b1;
+					end
+			s4:	begin
+					end
+			s5:	begin
+					end
 			endcase
 	end
-	*/
+	end
+	
+	// State mover
+	always @(*) begin
+		if (reset) begin
+			state = s1;
+		end 
+		else
+		begin
+			case (state)
+				s1: 	begin			
+							if (decoder_ready) 
+							begin
+								if (is_number) begin
+									state = s1; 
+								end
+								else 
+								begin
+									if (is_equal)
+									begin
+										state = s4;
+									end
+									else
+									begin
+										state = s3;
+									end
+								end
+							end
+						end
+						
+				s2:	begin					
+						end
+						
+				s3:	begin
+							if (decoder_ready)
+								if (is_number)
+									state = s1;
+						end
+						
+				s4:	begin
+							state = s5;
+						end
+						
+				s5:	begin
+							if (reset)
+								state = s1;
+						end
+			endcase
+		end
+	end
+
 	
 endmodule

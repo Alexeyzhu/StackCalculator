@@ -48,7 +48,6 @@ module Decoder(
 	reg NewToken = 0;
 	reg Probe = 0;
 	reg [3:0] OutBuffer;
-	reg GapStage = 0;
 	
 	// Output wires and registers
 	reg [3:0] Col;
@@ -81,7 +80,7 @@ module Decoder(
 			lock <= 1;
 			
 			// 1ms
-			if (sclk == 20'b110000110101000000) begin
+			if (sclk == 20'b11000011010100000) begin
 				//C1
 				Col <= 4'b0111;
 				sclk <= sclk + 1'b1;
@@ -89,7 +88,7 @@ module Decoder(
 			end
 			
 			// check row pins
-			else if(sclk == 20'b110000110101001000) begin
+			else if(sclk == 20'b11000011010101000) begin
 				
 				//R1
 				if (Row == 4'b0111) begin
@@ -119,14 +118,14 @@ module Decoder(
 			end
 
 			// 2ms
-			else if(sclk == 20'b1100001101010000000) begin
+			else if(sclk == 20'b110000110101000000) begin
 				//C2
 				Col<= 4'b1011;
 				sclk <= sclk + 1'b1;
 			end
 			
 			// check row pins
-			else if(sclk == 20'b1100001101010001000) begin
+			else if(sclk == 20'b110000110101001000) begin
 				//R1
 				if (Row == 4'b0111) begin
 					OutBuffer <= 4'b0010;		//2
@@ -155,14 +154,14 @@ module Decoder(
 			end
 
 			//3ms
-			else if(sclk == 20'b10010010011111000000) begin
+			else if(sclk == 20'b1001001001111100000) begin
 				//C3
 				Col<= 4'b1101;
 				sclk <= sclk + 1'b1;
 			end
 			
 			// check row pins
-			else if(sclk == 20'b10010010011111001000) begin
+			else if(sclk == 20'b1001001001111101000) begin
 				//R1
 				if(Row == 4'b0111) begin
 					OutBuffer <= 4'b0011;		//3
