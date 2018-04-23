@@ -151,8 +151,10 @@ module StackCalc(
 			s2:	begin
 					end
 			s3:	begin
+					if (!clk) begin
 						last_token_is_SIGN = 1;
 						NB_send_clear = 1'b1;
+					end
 					end
 			s4:	begin
 					end
@@ -163,9 +165,9 @@ module StackCalc(
 	end
 	
 	// State mover
-	always @(*) begin
+	always @(decoder_ready) begin
 		if (reset) begin
-			state = s1;
+			state <= s1;
 		end 
 		else
 		begin
@@ -174,17 +176,17 @@ module StackCalc(
 							if (decoder_ready) 
 							begin
 								if (is_number) begin
-									state = s1; 
+									state <= s1; 
 								end
 								else 
 								begin
 									if (is_equal)
 									begin
-										state = s4;
+										state <= s4;
 									end
 									else
 									begin
-										state = s3;
+										state <= s3;
 									end
 								end
 							end
@@ -196,7 +198,7 @@ module StackCalc(
 				s3:	begin
 							if (decoder_ready)
 								if (is_number)
-									state = s1;
+									state <= s1;
 						end
 						
 				s4:	begin
