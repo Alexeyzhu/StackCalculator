@@ -13,15 +13,12 @@
 */
 
 module ffCalc (
-
-	input clk,								// clock
-	input strobe,							// active-high synchronous write enable
+	input clk,							// clock
+	input strobe,						// active-high synchronous write enable
 	input [31:0] token,					// infix expression input
-
-	output ready,							// active-high ready to accept next token
+	output ready,						// active-high ready to accept next token
 	output reg [31:0] answer			// intermediate and final answers
 );
-
 	// functions
 	parameter token_ADD	= 32'h8000000A;
 	parameter token_SUB	= 32'h8000000B;
@@ -54,81 +51,64 @@ module ffCalc (
 	// helper signals
 	wire clear = strobe & (token_CLR==token);
 	wire is_equal = (token_EQU==token);
-	wire is_number = (output_queue > 32'h8000000A) | (output_queue < 32'h8000000F);
-	wire is_finished = (token_EQU==output_queue);
+	wire is_number = (output_queue > token_CLR) | (output_queue < token_ADD);
+	wire is_finished = (token_EQU == output_queue);
 
 	// ff_calc FSM
-   reg [2:0] state = fsm_IDLE;
-   reg [2:0] next_state = fsm_IDLE;
+    reg [2:0] state = fsm_IDLE;
+    reg [2:0] next_state = fsm_IDLE;
 	reg [4:0] stack_pointer = 5'd0;
 	reg [31:0] accumulator;
-		
-		
-   always @(posedge clk) begin
+			
+	always @(posedge clk) begin
 		if (clear) state <= fsm_IDLE;
 		else state <= next_state;
-   end
-	
-
-    // next state logic
-   always @* begin
-		case (state)
-			// idle, wait for a token
-			fsm_IDLE:	if (strobe) 
-								next_state = fsm_WAIT;
-							else 
-								next_state = fsm_IDLE;
-
-			// wait for shunting yard
-			fsm_WAIT: 	if (shunt_yard_ready) 
-								next_state = is_equal ? fsm_CALC : fsm_IDLE;
-							else 
-								next_state = fsm_WAIT;
-
-			// do calculation
-			fsm_CALC: 	if (is_number) 
-								 next_state = fsm_PUSH_NUMBER;
-							else 
-								next_state = is_finished ? fsm_IDLE : fsm_EXECUTE;
-
-			// push number onto stack
-			fsm_PUSH_NUMBER: next_state = fsm_CALC;
-
-			// do operation
-			fsm_EXECUTE: next_state = fsm_CALC;
-
-		default: next_state = fsm_IDLE;
-		endcase
 	end
+	
+    // next state logic
+    always @* begin
+      case (state)
+		// idle, wait for a token
+        fsm_IDLE  : if (strobe) next_state = fsm_WAIT;
+					else next_state = fsm_IDLE;
+
+		// wait for shunting yard
+		fsm_WAIT : if (shunt_yard_ready) next_state = is_equal ? fsm_CALC : fsm_IDLE;
+				   else next_state = fsm_WAIT;
+
+		// do calculation
+        fsm_CALC : if (is_number) next_state = fsm_PUSH_NUMBER;
+				   else next_state = is_finished ? fsm_IDLE : fsm_EXECUTE;
+
+		// push number onto stack
+        fsm_PUSH_NUMBER : next_state = fsm_CALC;
+
+		// do operation
+		fsm_EXECUTE : next_state = fsm_CALC;
+
+        default: next_state = fsm_IDLE;
+      endcase
+    end
 
 	// FSM outputs
 	assign ready = (fsm_IDLE == state);
 	assign rd_en = (fsm_PUSH_NUMBER == state) | (fsm_EXECUTE == state);
 
 	// stack
-	reg [31:0] stack[0:31];
+	reg [31:0] stack [0:31];
 	
 	always @(posedge clk) begin
-		if (fsm_PUSH_NUMBER == state) 
-			stack[stack_pointer] <= output_queue;
-		else 
-			if (fsm_EXECUTE == state) 
-				stack[stack_pointer-2] <= accumulator;
+		if (fsm_PUSH_NUMBER == state) stack[stack_pointer] <= output_queue;
+		else if (fsm_EXECUTE == state) stack[stack_pointer - 2] <= accumulator;
 	end
 
 	
 	always @(posedge clk) begin
-		if (clear) 
-			stack_pointer <= 5'd0;
-		else 
-			if (fsm_PUSH_NUMBER == state) 
-				stack_pointer <= stack_pointer + 1'd1;
-			else 
-				if (fsm_EXECUTE==state) 
-					stack_pointer <= stack_pointer - 1'd1;
+		if (clear) stack_pointer <= 5'd0;
+		else if (fsm_PUSH_NUMBER == state) stack_pointer <= stack_pointer + 1'd1;
+		else if (fsm_EXECUTE==state) stack_pointer <= stack_pointer - 1'd1;
 	end
 
-	
 	// ALU	
 	always @* begin
 		case (output_queue)
@@ -136,19 +116,17 @@ module ffCalc (
 			token_SUB : accumulator = stack[stack_pointer-2] - stack[stack_pointer-1];
 			token_MUL : accumulator = stack[stack_pointer-2] * stack[stack_pointer-1];
 			token_DIV : accumulator = stack[stack_pointer-2] / stack[stack_pointer-1];
-			default : accumulator = 32'd0;
+			default : accumulator = 4'd0;
 		endcase
 	end
 
 	// update output
-	// reg [3:0] answer = 4'd0;
+	// reg [31:0] answer = 32'd0;
 	always @(posedge clk) begin
-		// reg [3:0] answer = 4'd0;
-		if (clear) 
-			answer <= 32'd0;
-		else 
-			if (fsm_EXECUTE == state) 
-				answer <= accumulator;
+		// reg [3:0] answer = 32'd0;
+		if (clear) answer <= 32'd0;
+		else if (fsm_EXECUTE == state) answer <= accumulator;
+
 	end
 
 endmodule
