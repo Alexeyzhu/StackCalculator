@@ -8,6 +8,7 @@
 
 module StackCalc(
 	input				clk,
+	//input MAX10_CLK2_50,
 	input [9:0] 	SW,
 	
 	inout [7:0] 	JA,
@@ -24,6 +25,7 @@ module StackCalc(
 	output [9:0] 	LEDR
 );
 
+	//wire clk = MAX10_CLK2_50;
 	wire reset = !KEY[0];
 
 	// State machine states
@@ -39,9 +41,9 @@ module StackCalc(
 	reg [3:0] BUFF_token_sender;
 	
 	reg NB_send_clear = 1'b0;
-	reg last_token_is_SIGN = 1'b1;
+	//reg last_token_is_SIGN = 1'b1;
 	
-	wire built_number;
+	wire [31:0] built_number;
 	
 	
 	reg [3:0] wr_control;
@@ -71,7 +73,7 @@ module StackCalc(
 	// Outputs
 	wire [384:0] vgabuff;
 	
-	assign LEDR[5] = last_token_is_SIGN;	
+	//assign LEDR[5] = last_token_is_SIGN;	
 	assign LEDR[7] = (is_equal);
 	assign LEDR[8] = (decoder_ready);
 	assign LEDR[9] = (is_number);
@@ -99,7 +101,7 @@ module StackCalc(
 	NumberBuilder builder(
 			.clk(clk),
 			.strobe(control_signals[0]),
-			.clear(NB_clear),
+			.clear(control_signals [40]),
 			.Token(decoded_token),
 			.number(built_number),
 			.builder_ready(builder_ready)
@@ -146,7 +148,7 @@ module StackCalc(
 	);
 	
 	
-	wire [ 31:0 ] h7segment = SW[0] ? vgabuff[31:0] : (SW[1] ? answer : state); //32'h00FFFFFF;
+	wire [ 31:0 ] h7segment = SW[0] ? vgabuff[31:0] : (SW[1] ? built_number : state); //32'h00FFFFFF;
 	
 	assign HEX0 [7] = 1'b1;
 	assign HEX1 [7] = 1'b1; 
