@@ -7,39 +7,54 @@
 `timescale 1ns / 1ps
 
 module StackCalc(
-	input clk,
-	input [9:0] SW,
+	input				clk,
+	input [9:0] 	SW,
 	
-	inout [7:0] JA,
-	input [1:0] KEY,
+	inout [7:0] 	JA,
+	input [1:0] 	KEY,
 	
-	output [31:0] answer,
+	output [31:0] 	answer,
 	
-	output [7:0] HEX0,
-	output [7:0] HEX1,
-	output [7:0] HEX2,
-	output [7:0] HEX3,
-	output [7:0] HEX4,
-	output [7:0] HEX5,
-	output [9:0] LEDR
+	output [7:0] 	HEX0,
+	output [7:0] 	HEX1,
+	output [7:0] 	HEX2,
+	output [7:0] 	HEX3,
+	output [7:0] 	HEX4,
+	output [7:0] 	HEX5,
+	output [9:0] 	LEDR
 );
 
 	wire reset = !KEY[0];
 
 	// State machine states
-	parameter s1 			= 3'd0; 	// IDLE 			Waiting for new token
-	parameter s2 			= 3'd1; 	// NEW TOKEN 	Received new token
-	parameter s3			= 3'd2; 	// SIGN 			New token is sign
-	parameter s4			= 3'd3; 	// CALC 			Calculation
-	parameter s5			= 3'd4; 	// WAIT RESET 	Result is ready, waiting for reset
+	/*parameter state1 = 3'd1; 	// IDLE 		Waiting for new token
+	parameter state2 = 3'd2; 	// NEW TOKEN 	Received new token
+	parameter state3 = 3'd3; 	// SIGN 		New token is sign
+	parameter state4 = 3'd4; 	// CALC 		Calculation
+	parameter state5 = 3'd5; 	// WAIT RESET 	Result is ready, waiting for reset*/
 	
 	
 	// Temporal registers
 	reg [3:0] NB_token_sender;						// A place to store token to be sent to Number Builder
-	reg NB_strobe; 									// Receiver enabler for Number Builder			
-	reg [3:0] state = s1;	 							// Current state
+	reg [3:0] BUFF_token_sender;
+	
 	reg NB_send_clear = 1'b0;
 	reg last_token_is_SIGN = 1'b1;
+	
+	wire built_number;
+	
+	
+	reg [3:0] wr_control;
+   reg [3:0] reg_wr_control;
+   reg [3:0] VGA_token_sender;
+   reg [31:0] ff_token_sender;
+   reg VGA_clear;
+   reg NB_clear;
+   reg CALC_reset;
+   //reg [7:0] state;
+   //reg [7:0] next_state;
+	reg [31:0] reg_asnwer;
+	parameter wait_token=0,build=1,send_number=2,sender_wait_1=3,ff_send_equal=4,calc_wait=5,send_answer=6,wait_reset=7;
 	
 	
 	// Helping signals
@@ -48,11 +63,9 @@ module StackCalc(
 	
 	wire is_number = (decoded_token >= 4'h0 && decoded_token < 4'hA) ? 1'b1 : 1'b0;
 	wire is_equal = (decoded_token == 4'hE) ? 1'b1 : 1'b0;
-	wire NB_clear = (NB_send_clear || reset) ? 1'b1 : 1'b0;
+	//wire NB_clear = (NB_send_clear || reset) ? 1'b1 : 1'b0;
 	
-	wire NB_write = (state==s1 && decoder_ready && is_number);
-	wire BUFF_write = decoder_ready && ( (state==s1 && is_number) || (state==s3 && !is_number && !last_token_is_SIGN) );
-	
+	wire calc_ready;
 	wire builder_ready;
 	
 	// Outputs
@@ -62,6 +75,9 @@ module StackCalc(
 	assign LEDR[7] = (is_equal);
 	assign LEDR[8] = (decoder_ready);
 	assign LEDR[9] = (is_number);
+	
+	wire [49:0] control_signals;
+	wire [7:0] state = control_signals[49:43];
 	
 		
 	//-----------------------------------------------
@@ -82,10 +98,10 @@ module StackCalc(
 	//-----------------------------------------------
 	NumberBuilder builder(
 			.clk(clk),
-			.strobe(NB_write),
+			.strobe(control_signals[0]),
 			.clear(NB_clear),
 			.Token(decoded_token),
-			.number(answer),
+			.number(built_number),
 			.builder_ready(builder_ready)
 	);
 	
@@ -95,123 +111,59 @@ module StackCalc(
 	//-----------------------------------------------
 	VGABuffer buffer(
 			.clk(clk),
-			.strobe(BUFF_write),
+			.strobe(control_signals[1]),
 			.clear(reset),
-			.Token(decoded_token),
+			.Token(control_signals[7:4]),
 			.buffer(vgabuff)
+	);
+	
+	/*ffCalc ffCalc(
+		.clk(clk),
+		.strobe(control_signals[2]),
+		.token(control_signals[39:8]),
+		.ready(calc_ready),
+		.answer(reg_answer)
+		
+	);*/
+	
+	state_machine state_machine(
+		.clock(clk),
+		.reset(reset),
+		.decoder_ready(decoder_ready),
+		.is_number(is_number),
+		.is_equal(is_equal),
+		.calc_ready(1'b1),//calc_ready),
+		.decoded_token(decoded_token),
+		.built_number(built_number),
+		.calc_answer(reg_answer),
+		/*.wr_control(wr_control),
+		.VGA_token_sender(VGA_token_sender),
+		.ff_token_sender(ff_token_sender),
+		.VGA_clear(VGA_clear),
+		.NB_clear(NB_clear),
+		.CALC_reset(CALC_reset)*/
+		.control_signals(control_signals)
 	);
 	
 	
 	wire [ 31:0 ] h7segment = SW[0] ? vgabuff[31:0] : (SW[1] ? answer : state); //32'h00FFFFFF;
 	
 	assign HEX0 [7] = 1'b1;
-   assign HEX1 [7] = 1'b1; 
-   assign HEX2 [7] = 1'b1;
-   assign HEX3 [7] = 1'b1;
-   assign HEX4 [7] = 1'b1;
-   assign HEX5 [7] = 1'b1;
+	assign HEX1 [7] = 1'b1; 
+	assign HEX2 [7] = 1'b1;
+	assign HEX3 [7] = 1'b1;
+	assign HEX4 [7] = 1'b1;
+	assign HEX5 [7] = 1'b1;
 	
-	assign LEDR[0] = state == s1;
-	assign LEDR[1] = state == s2;
-	assign LEDR[2] = state == s3;
-	assign LEDR[3] = state == s4;
-	assign LEDR[4] = state == s5;
 	
 	sm_hex_display digit_5 ( h7segment [23:20] , HEX5 [6:0] );
-   sm_hex_display digit_4 ( h7segment [19:16] , HEX4 [6:0] );
-   sm_hex_display digit_3 ( h7segment [15:12] , HEX3 [6:0] );
-   sm_hex_display digit_2 ( h7segment [11: 8] , HEX2 [6:0] );
-   sm_hex_display digit_1 ( h7segment [ 7: 4] , HEX1 [6:0] );
-   sm_hex_display digit_0 ( h7segment [ 3: 0] , HEX0 [6:0] );
+	sm_hex_display digit_4 ( h7segment [19:16] , HEX4 [6:0] );
+	sm_hex_display digit_3 ( h7segment [15:12] , HEX3 [6:0] );
+	sm_hex_display digit_2 ( h7segment [11: 8] , HEX2 [6:0] );
+	sm_hex_display digit_1 ( h7segment [ 7: 4] , HEX1 [6:0] );
+	sm_hex_display digit_0 ( h7segment [ 3: 0] , HEX0 [6:0] );
 	
 	
-	//-----------------------------------------------
-	//					State Machine
-	// s1 		= 3'd0 	IDLE 			Waiting for new token
-	// s2 		= 3'd1 	NEW TOKEN 	Received new token
-	// s3			= 3'd2 	SIGN 			New token is sign
-	// s4			= 3'd3 	CALC 			Calculation
-	// s5			= 3'd4 	WAIT RESET 	Result is ready, waiting for reset
-	//-----------------------------------------------
-	
-	// Acting according to step
-	always @(state or reset) begin
-	if (reset) 
-	begin
-		last_token_is_SIGN <= 1'b1;
-		NB_send_clear <= 1'b1;
-	end
-	else
-	begin
-			NB_send_clear = 1'b0;
-			case (state)
-			s1: 	begin
-						last_token_is_SIGN = 0;
-					end
-			s2:	begin
-					end
-			s3:	begin
-					if (!clk) begin
-						last_token_is_SIGN = 1;
-						NB_send_clear = 1'b1;
-					end
-					end
-			s4:	begin
-					end
-			s5:	begin
-					end
-			endcase
-	end
-	end
-	
-	// State mover
-	always @(decoder_ready) begin
-		if (reset) begin
-			state <= s1;
-		end 
-		else
-		begin
-			case (state)
-				s1: 	begin			
-							if (decoder_ready) 
-							begin
-								if (is_number) begin
-									state <= s1; 
-								end
-								else 
-								begin
-									if (is_equal)
-									begin
-										state <= s4;
-									end
-									else
-									begin
-										state <= s3;
-									end
-								end
-							end
-						end
-						
-				s2:	begin					
-						end
-						
-				s3:	begin
-							if (decoder_ready)
-								if (is_number)
-									state <= s1;
-						end
-						
-				s4:	begin
-							state = s5;
-						end
-						
-				s5:	begin
-							if (reset)
-								state = s1;
-						end
-			endcase
-		end
-	end
 
 	
 endmodule
