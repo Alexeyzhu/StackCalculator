@@ -122,12 +122,30 @@ module StackCalc(
 	//  		VGA Buffer
 	//			
 	//-----------------------------------------------
+	
+	
+	reg flag; 
+	initial flag <= 1;
+	reg a;
+	initial a <= 0;
+	
+	always@(posedge clk)
+	begin
+		if(!a)
+			a <= 1;
+		else 
+			flag = 0;	
+	end
+	
+	
 	VGABuffer buffer(
 			.clk(clk),
 			.strobe(control_signals[1]),
 			.clear(reset),
 			.token_size(control_signals[9:4]),
 			.Token(control_signals[41:10]),
+			.answ_flag(flag),
+			.answ_input(32'hffffff0f),
 			.buffer(vgabuff)
 	);
 	
