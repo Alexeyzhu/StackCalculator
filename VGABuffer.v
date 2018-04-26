@@ -50,8 +50,8 @@ always@(posedge clk) begin
 		if(answ_flag)begin 
 			start = 1'b1;
 			counter <= 32'b0;
-			buffer[index -: 4] = 4'he;
-			index = index - 4;
+			//buffer[index -: 4] = 4'he;
+			//index = index - 4;
 			answ = answ_input;
 			if(answ[31] == 1) begin
 				answ = ~(answ - 1);

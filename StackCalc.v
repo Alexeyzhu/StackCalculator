@@ -145,7 +145,7 @@ module StackCalc(
 			.token_size(control_signals[9:4]),
 			.Token(control_signals[41:10]),
 			.answ_flag(flag),
-			.answ_input(32'hffffff0f),
+			.answ_input(32'hffffff4f),//hffffff0f),
 			.buffer(vgabuff)
 	);
 	
@@ -178,7 +178,7 @@ module StackCalc(
 	);
 	
 	
-	picture_generator p_g(//.reset(KEY),
+	VGAController controller(//.reset(KEY),
 							 .numbers(vgabuff),
 							 .clk(clk_25),
 							 .vga_h_sync(VGA_HS), 
