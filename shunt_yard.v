@@ -18,9 +18,6 @@
 	stopping at the first addition or subtraction encountered.  The euquals
 	operator is special.  It will pop everything off the stack and then be
 	pushed directly to the output queue.
-	
-	Authors:		a guy from GitHub
-					Muhammad Mavlyutov
 */
 
 module ShuntingYard (
@@ -34,8 +31,8 @@ module ShuntingYard (
 	output [31:0] output_queue	// postfix expression output
 );
 
-	reg [31:0] stack[0:31];
-	reg [31:0] wr_index = 32'd0;
+	reg [31:0] stack [31:0];
+	reg [4:0] wr_index = 5'd0;
 	reg [4:0] stack_pointer = 5'd0;
 
 	// functions
@@ -55,7 +52,7 @@ module ShuntingYard (
 
 	// helper signals
 	wire clear = wr_en & (token_CLR==token);
-	wire is_number = (output_queue < 32'h8000000A) | (output_queue > 32'h8000000F);
+	wire is_number = (token > token_CLR) | (token < token_ADD);
 	wire is_equal = (token_EQU==token);
 	wire pop = (stack_pointer > 0) && ( // check operator precedence
 		(token_ADD==token) ||
@@ -96,26 +93,28 @@ module ShuntingYard (
 	end
 
 	// FSM outputs
-	assign ready = (fsm_IDLE==state);
+	assign ready = (fsm_IDLE == state);
 
 	// output queue
-	reg [31:0] queue[0:31];
+	reg [31:0] queue [0:31];
+	
 	always @(posedge clk) begin
 		if (fsm_PUSH_NUMBER==state) queue[wr_index] <= token;
 		else if (fsm_POP_FUNCTION==state) queue[wr_index] <= stack[stack_pointer-1];
 	end
 
-	
 	always @(posedge clk) begin
-		if (clear) wr_index <= 4'd0;
+		if (clear) wr_index <= 5'd0;
 		else if ((fsm_PUSH_NUMBER==state) || (fsm_POP_FUNCTION==state)) wr_index <= wr_index + 1'd1;
 	end
 
-	reg [31:0] rd_index = 4'd0;
+	reg [4:0] rd_index = 5'd0;
+	
 	always @(posedge clk) begin
-		if (clear) rd_index <= 4'd0;
+		if (clear) rd_index <= 5'd0;
 		else if (rd_en) rd_index <= rd_index + 1'd1;
 	end
+	
 	assign output_queue = queue[rd_index];
 
 	// function stack

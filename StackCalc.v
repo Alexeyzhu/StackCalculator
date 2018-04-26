@@ -7,51 +7,92 @@
 `timescale 1ns / 1ps
 
 module StackCalc(
-	input  clk,
-	inout  [7:0] JA,
-	input 	clear,
-	output [31:0] answer,
-	output [6:0] seg,
-	output VGA_HS,
-	output VGA_VS,
-	output [3:0] VGA_R,
-	output [3:0] VGA_G,
+	//input				clk,
+	input MAX10_CLK1_50,
+	input [9:0] 	SW,
+	
+	inout [7:0] 	JA,
+	input [1:0] 	KEY,
+	
+	output [31:0] 	answer,
+	
+	output [7:0] 	HEX0,
+	output [7:0] 	HEX1,
+	output [7:0] 	HEX2,
+	output [7:0] 	HEX3,
+	output [7:0] 	HEX4,
+	output [7:0] 	HEX5,
+	output [9:0] 	LEDR,
+	output VGA_HS, 
+	output VGA_VS, 
+	output [3:0] VGA_R, 
+	output [3:0] VGA_G, 
 	output [3:0] VGA_B
 );
 
+	wire clk = MAX10_CLK1_50;
 
-	// StackCalc states
-	parameter fsm_IDLE				= 3'd0; // waiting for token
-	parameter fsm_PR_TOKEN			= 3'd1; // Processing token
-	parameter fsm_WAIT_NB 			= 3'd2; // Wait till Number Builder will be ready to get new token
-	parameter fsm_CALC_TOKEN 		= 3'd3; // Sending token to Calculator
-	parameter fsm_NB_TOKEN		 	= 3'd4; // Sending token to Number builder
-	parameter fsm_CALC 				= 3'd4; // Calculation in progress
- 	
+	wire clk_25;
+
+	pll_bb p(.inclk0(MAX10_CLK1_50), .c0(clk_25));
+
+	
+	wire reset = !KEY[0];
+
+	// State machine states
+	/*parameter state1 = 3'd1; 	// IDLE 		Waiting for new token
+	parameter state2 = 3'd2; 	// NEW TOKEN 	Received new token
+	parameter state3 = 3'd3; 	// SIGN 		New token is sign
+	parameter state4 = 3'd4; 	// CALC 		Calculation
+	parameter state5 = 3'd5; 	// WAIT RESET 	Result is ready, waiting for reset*/
 	
 	
-	// Inputs
-	reg strobe;
-	reg [31:0] CALC_token;
-	reg NB_strobe;
-
-	// Outputs
-	wire ready;
+	// Temporal registers
+	reg [3:0] NB_token_sender;						// A place to store token to be sent to Number Builder
+	reg [3:0] BUFF_token_sender;
+	
+	reg NB_send_clear = 1'b0;
+	//reg last_token_is_SIGN = 1'b1;
+	
+	wire [31:0] built_number;
+	
+	
+	reg [3:0] wr_control;
+   reg [3:0] reg_wr_control;
+   reg [3:0] VGA_token_sender;
+   reg [31:0] ff_token_sender;
+   reg VGA_clear;
+   reg NB_clear;
+   reg CALC_reset;
+   //reg [7:0] state;
+   //reg [7:0] next_state;
+	reg [31:0] reg_asnwer;
+	parameter wait_token=0,build=1,send_number=2,sender_wait_1=3,ff_send_equal=4,calc_wait=5,send_answer=6,wait_reset=7;
+	
+	
+	// Helping signals
+	wire decoder_ready; 							// Decoder has decoded new token
+	wire [3:0] decoded_token;						// Token from decoder
+	
+	wire is_number = (decoded_token >= 4'h0 && decoded_token < 4'hA) ? 1'b1 : 1'b0;
+	wire is_equal = (decoded_token == 4'hE) ? 1'b1 : 1'b0;
+	//wire NB_clear = (NB_send_clear || reset) ? 1'b1 : 1'b0;
+	
+	wire calc_ready;
 	wire builder_ready;
-	//wire [3:0] answer;
 	
-	reg [3:0] state = fsm_IDLE;
-	reg [3:0] next_state = fsm_IDLE;
+	// Outputs
+	wire [383:0] vgabuff;
 	
-	wire [31:0] decoded_token;
-	wire decoder_ready;
+	assign LEDR[5] = (calc_ready);	
+	assign LEDR[7] = (is_equal);
+	assign LEDR[8] = (decoder_ready);
+	assign LEDR[9] = (is_number);
 	
-	reg [3:0] NB_token_sender;
-	reg [31:0] CALC_token_sender;
+	wire [82:0] control_signals;
+	wire [7:0] state = control_signals[81:74];
 	
-	reg sending_to_CALC;
-	
-	
+		
 	//-----------------------------------------------
 	//  		Keyboard Decoder
 	//-----------------------------------------------
@@ -62,171 +103,91 @@ module StackCalc(
 			.DecodeOut(decoded_token),
 			.DecoderState(decoder_ready)
 	);
-	
+
+		
+	//-----------------------------------------------
+	//  		Number builder
+	//			Makes number from sequence of digits
+	//-----------------------------------------------
 	NumberBuilder builder(
 			.clk(clk),
-			.strobe(NB_strobe),
-			.Token(NB_token_sender),
-			.Number(builded),
+			.strobe(control_signals[0]),
+			.clear(control_signals [82]),
+			.Token(decoded_token),
+			.number(built_number),
 			.builder_ready(builder_ready)
 	);
 	
 	//-----------------------------------------------
-	//			Four Function Calculator
+	//  		VGA Buffer
+	//			
 	//-----------------------------------------------
-	ffCalc ff_calc(
+	VGABuffer buffer(
+			.clk(clk),
+			.strobe(control_signals[1]),
+			.clear(reset),
+			.token_size(control_signals[9:4]),
+			.Token(control_signals[41:10]),
+			.buffer(vgabuff)
+	);
+	
+	/*ffCalc ffCalc(
 		.clk(clk),
-		.strobe(strobe),
-		.token(CALC_token),
-		.ready(ready),
-		.answer(answer)
-	);
-	
-	//-----------------------------------------------
-	//  		VGA Display Controller
-	//-----------------------------------------------
-	VGA vga(
-			.MAX10_CLK1_50(clk),
-			.VGA_HS(VGA_HS),
-			.VGA_VS(VGA_VS),
-			.VGA_R(VGA_R),
-			.VGA_G(VGA_G),
-			.VGA_B(VGA_B)
-	);
-	
-	
-	wire is_number = (decoded_token < 4'b1010) & (decoded_token >= 4'b0000);
-	
-	wire is_equal = (decoded_token < 4'b1111) & (decoded_token > 4'b1101);
-	
-	
-	always @(posedge clk) begin
-		if (clear) state <= fsm_IDLE;
-		else 
-			state <= next_state;
-   end
-	
-	 // next state logic
-   always @* begin
-		case (state)
-			fsm_IDLE:		next_state = decoder_ready ? fsm_PR_TOKEN : fsm_IDLE;
-			
-			fsm_PR_TOKEN:	next_state = is_number ? fsm_WAIT_NB : (is_equal ? fsm_CALC : (ready ? fsm_IDLE : fsm_WAIT_NB));
-									
-			fsm_WAIT_NB: 	next_state = builder_ready ? fsm_IDLE : fsm_WAIT_NB;
-			
-			//fsm_CALC_TOKEN: next_state = 
-
-			fsm_CALC: 		next_state = ready ? fsm_IDLE : fsm_CALC;
-
-		default: next_state = fsm_IDLE;
-		endcase
-	end
-	
-	always @(posedge clk) begin
-			if (state == fsm_PR_TOKEN) begin
-					if (is_number) 
-					begin
-						// Token is digit
-						
-						NB_token_sender = decoded_token;
-						//next_state = fsm_WAIT_NB;
-					end
-					else begin
-						// Token is sign				
-						
-						CALC_token_sender = builded;
-						sending_to_CALC = 1;
-						/*
-						case (decoded_token)
-							4'b1010: CALC_ //puttok(32'h8000000A); // +
-							4'b1011: puttok(32'h8000000B); // -
-							4'b1100: puttok(32'h8000000C); // *
-							4'b1101: puttok(32'h8000000D); // /
-							4'b1110: begin 
-								puttok(32'h8000000E); 			// =
-								// next_state = fsm_CALC;
-							end
-							4'b1111: puttok(32'h8000000F); // CLR
-						endcase*/
-					end 
-			end
-			
-			if (clk && state == fsm_PR_TOKEN && sending_to_CALC && !strobe) 
-				strobe = 1;
-	end
-	
-	always @(negedge clk) begin
-		/*if (fsm_PR_TOKEN == state && sending_to_CALC && !strobe)
-			CALC_token <= CALC_token_sender;
-		else if (state == fsm_PR_TOKEN && sending_to_CALC && strobe) begin
-			strobe <= 0;
-			sending_to_CALC <= 0;
-		end*/
-	end
-
+		.strobe(control_signals[2]),
+		.token(control_signals[73:42]),
+		.ready(calc_ready),
+		.answer(reg_answer)
 		
-	// 40MHz clock
-	//always begin
-	//	#12 clk = 0;
-	//	#13 clk = 1;
-	//end
+	);*/
 	
-	initial $monitor ("Ans = %d", answer);
-	initial begin
-		// create files for waveform viewer
-		$dumpfile("ff_calc.lxt");
-		$dumpvars;
+	state_machine state_machine(
+		.clock(clk),
+		.reset(reset),
+		.decoder_ready(decoder_ready),
+		.is_number(is_number),
+		.is_equal(is_equal),
+		.calc_ready(1'b1),//calc_ready),
+		.decoded_token(decoded_token),
+		.built_number(built_number),
+		.calc_answer(reg_answer),
+		/*.wr_control(wr_control),
+		.VGA_token_sender(VGA_token_sender),
+		.ff_token_sender(ff_token_sender),
+		.VGA_clear(VGA_clear),
+		.NB_clear(NB_clear),
+		.CALC_reset(CALC_reset)*/
+		.control_signals(control_signals)
+	);
+	
+	
+	picture_generator p_g(//.reset(KEY),
+							 .numbers(vgabuff),
+							 .clk(clk_25),
+							 .vga_h_sync(VGA_HS), 
+							 .vga_v_sync(VGA_VS), 
+							 .vga_R(VGA_R), 
+							 .vga_G(VGA_G),
+							 .vga_B(VGA_B));
+							 
+	
+	wire [ 31:0 ] h7segment = SW[0] ? vgabuff[31:0] : (SW[1] ? built_number : (SW[3] ? reg_answer : state)); //32'h00FFFFFF;
+	
+	assign HEX0 [7] = 1'b1;
+	assign HEX1 [7] = 1'b1; 
+	assign HEX2 [7] = 1'b1;
+	assign HEX3 [7] = 1'b1;
+	assign HEX4 [7] = 1'b1;
+	assign HEX5 [7] = 1'b1;
+	
+	
+	sm_hex_display digit_5 ( h7segment [23:20] , HEX5 [6:0] );
+	sm_hex_display digit_4 ( h7segment [19:16] , HEX4 [6:0] );
+	sm_hex_display digit_3 ( h7segment [15:12] , HEX3 [6:0] );
+	sm_hex_display digit_2 ( h7segment [11: 8] , HEX2 [6:0] );
+	sm_hex_display digit_1 ( h7segment [ 7: 4] , HEX1 [6:0] );
+	sm_hex_display digit_0 ( h7segment [ 3: 0] , HEX0 [6:0] );
+	
+	
 
-		// Initialize Inputs
-		//clk = 1;
-		strobe = 0;
-		CALC_token = 32'h0;
-
-		// 18 + 4 =
-		//puttok(32'h8000000F); // clear
-		//puttok(32'd18); // 3
-		//puttok(32'h8000000A); // +
-		//puttok(32'd9); // 4
-		//puttok(32'h8000000E); // =
-
-		// 7 - 8 / 4 =
-		//puttok(32'h8000000F); // clear
-		//puttok(4'h7); // 7
-		//puttok(32'h8000000B); // -
-		//puttok(4'h8); // 8
-		//puttok(32'h8000000D); // /
-		//puttok(4'h4); // 4
-		//puttok(32'h8000000E); // =
-
-		// 3 + 4 * 2 - 1 =
-		//puttok(32'h8000000F); // clear
-		//puttok(4'h3); // 3
-		//puttok(32'h8000000A); // +
-		//puttok(4'h4); // 4
-		//puttok(32'h8000000C); // *
-		//puttok(4'h2); // 2
-		//puttok(32'h8000000B); // -
-		//puttok(4'h1); // 1
-		//puttok(32'h8000000E); // =
-
-		// Finished
-		#100 $display("finished");
-		$finish;
-	end
-
-	// Send token to ffcalc
-	/*task puttok;
-		input [31:0] value;
-		begin
-			$display("New token: %d", value);
-			wait(!clk) #1 CALC_token = value;
-			wait(clk) #1 strobe = 1;
-			wait(!clk);
-			wait(clk) #1 strobe = 0;
-			wait(!clk);
-			wait(ready);
-		end
-	endtask*/
 	
 endmodule

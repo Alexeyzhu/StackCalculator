@@ -7,7 +7,7 @@ module picture_generator
 (clk, numbers, vga_h_sync, vga_v_sync, vga_R, vga_G, vga_B);
 
 input clk;
-input [15:0] numbers;
+input [maxInput-1:0] numbers;
 
 output vga_h_sync, vga_v_sync;
 output [3:0] vga_R;
