@@ -1,6 +1,6 @@
 module state_machine (
     clock,reset,decoder_ready,built_number[31:0],is_number,calc_ready,is_equal,calc_answer[31:0],decoded_token[3:0],
-    control_signals[49:0]);
+    control_signals[82:0]);
 
     input clock;
     input reset;
@@ -20,8 +20,8 @@ module state_machine (
     tri0 is_equal;
 	 tri0 [3:0] decoded_token;
     output [49:0] control_signals;
-    reg [49:0] control_signals;
-    reg [49:0] reg_control_signals = 50'b0;
+    reg [82:0] control_signals;
+    reg [82:0] reg_control_signals = 83'b0;
     reg [7:0] fstate;
     reg [7:0] reg_fstate;
 	 reg last_token_is_SIGN = 1'b1;
@@ -47,14 +47,14 @@ module state_machine (
     begin
         if (reset) begin
             reg_fstate <= wait_token;
-            reg_control_signals <= 50'b0;
-            control_signals <= 50'b0;
+            reg_control_signals <= 83'b0;
+            control_signals <= 83'b0;
 				last_token_is_SIGN <= 1'b1;
         end
         else begin
-            reg_control_signals <= 50'b0;
-            control_signals <= 50'b0;
-				reg_control_signals[49:43] <= fstate;
+            reg_control_signals <= 83'b0;
+            control_signals <= 83'b0;
+				reg_control_signals[81:74] <= fstate;
             case (fstate)
                 wait_token: begin
                     if ((decoder_ready & is_number))
@@ -68,14 +68,16 @@ module state_machine (
                 build: begin						// Send new digit to NB and VGA buffer
                     reg_fstate <= wait_token;
 						  last_token_is_SIGN <= 1'b0;
-                    reg_control_signals [7:4] <= decoded_token;
+						  reg_control_signals [9:4] <= 6'd4; // Token size
+                    reg_control_signals [41:10] <= decoded_token;
                     reg_control_signals [3:0] <= 4'b0011;
                 end
                 send_number: begin				// Send sign to VGA buffer and number from NB to ffcalc
                     reg_fstate <= sender_wait_1;
 						  last_token_is_SIGN <= 1'b1;
-                    reg_control_signals [7:4] <= decoded_token; // send sign
-                    reg_control_signals [39:8] <= built_number;
+						  reg_control_signals [9:4] <= 6'd4; // Token size
+                    reg_control_signals [41:10] <= decoded_token; // send sign
+                    reg_control_signals [73:42] <= built_number;
                     reg_control_signals [3:0] <= 4'b0110;
                 end
                 sender_wait_1: begin			// Wait until ffcalc received new number
@@ -88,9 +90,9 @@ module state_machine (
                 ff_send_sign: begin				// Send sign to ffcalc
 						  reg_fstate <= sender_wait_2;
 						  last_token_is_SIGN <= 1'b1;
-						  reg_control_signals [40] <= 1'b1;
-                    reg_control_signals [39:8] <= extended_sign;
-                    reg_control_signals [3:0]  <= 4'b0100;
+						  reg_control_signals [82] <= 1'b1; // Clear Number Builder
+                    reg_control_signals [73:42] <= extended_sign; // Sign to ffcalc
+                    reg_control_signals [3:0]  <= 4'b0100;			// write enable
                 end
 					 sender_wait_2: begin			// Wait until ffcalc received new sign
 						last_token_is_SIGN <= 1;
@@ -111,18 +113,15 @@ module state_machine (
                 end*/
                 send_answer: begin
                     reg_fstate <= wait_reset;
-
-                    reg_control_signals [7:4] <= calc_answer;
+						  reg_control_signals [9:4] <= 6'd32; 			// Token size
+                    reg_control_signals [41:10] <= calc_answer;	// calculated answer to vga buff
 
                     reg_control_signals [3:0] <= 4'b0010;
                 end
                 wait_reset: begin
                     reg_fstate <= wait_reset;
 
-                    reg_control_signals [40] <= 1'b1;
-
-                    reg_control_signals [41] <= 1'b1;
-						  
+                    reg_control_signals [82] <= 1'b1; // NB clear						  
 						  last_token_is_SIGN <= 1'b1;
                 end
             endcase

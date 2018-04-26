@@ -7,8 +7,8 @@
 `timescale 1ns / 1ps
 
 module StackCalc(
-	input				clk,
-	//input MAX10_CLK2_50,
+	//input				clk,
+	input MAX10_CLK1_50,
 	input [9:0] 	SW,
 	
 	inout [7:0] 	JA,
@@ -22,10 +22,21 @@ module StackCalc(
 	output [7:0] 	HEX3,
 	output [7:0] 	HEX4,
 	output [7:0] 	HEX5,
-	output [9:0] 	LEDR
+	output [9:0] 	LEDR,
+	output VGA_HS, 
+	output VGA_VS, 
+	output [3:0] VGA_R, 
+	output [3:0] VGA_G, 
+	output [3:0] VGA_B
 );
 
-	//wire clk = MAX10_CLK2_50;
+	wire clk = MAX10_CLK1_50;
+
+	wire clk_25;
+
+	pll p(.inclk0(MAX10_CLK1_50), .c0(clk_25));
+
+	
 	wire reset = !KEY[0];
 
 	// State machine states
@@ -73,13 +84,13 @@ module StackCalc(
 	// Outputs
 	wire [384:0] vgabuff;
 	
-	//assign LEDR[5] = last_token_is_SIGN;	
+	assign LEDR[5] = (calc_ready);	
 	assign LEDR[7] = (is_equal);
 	assign LEDR[8] = (decoder_ready);
 	assign LEDR[9] = (is_number);
 	
-	wire [49:0] control_signals;
-	wire [7:0] state = control_signals[49:43];
+	wire [82:0] control_signals;
+	wire [7:0] state = control_signals[81:74];
 	
 		
 	//-----------------------------------------------
@@ -101,7 +112,7 @@ module StackCalc(
 	NumberBuilder builder(
 			.clk(clk),
 			.strobe(control_signals[0]),
-			.clear(control_signals [40]),
+			.clear(control_signals [82]),
 			.Token(decoded_token),
 			.number(built_number),
 			.builder_ready(builder_ready)
@@ -115,14 +126,15 @@ module StackCalc(
 			.clk(clk),
 			.strobe(control_signals[1]),
 			.clear(reset),
-			.Token(control_signals[7:4]),
+			.token_size(control_signals[9:4]),
+			.Token(control_signals[41:10]),
 			.buffer(vgabuff)
 	);
 	
 	/*ffCalc ffCalc(
 		.clk(clk),
 		.strobe(control_signals[2]),
-		.token(control_signals[39:8]),
+		.token(control_signals[73:42]),
 		.ready(calc_ready),
 		.answer(reg_answer)
 		
@@ -148,7 +160,17 @@ module StackCalc(
 	);
 	
 	
-	wire [ 31:0 ] h7segment = SW[0] ? vgabuff[31:0] : (SW[1] ? built_number : state); //32'h00FFFFFF;
+	picture_generator p_g(//.reset(KEY),
+							 .numbers(vgabuff),
+							 .clk(clk_25),
+							 .vga_h_sync(VGA_HS), 
+							 .vga_v_sync(VGA_VS), 
+							 .vga_R(VGA_R), 
+							 .vga_G(VGA_G),
+							 .vga_B(VGA_B));
+							 
+	
+	wire [ 31:0 ] h7segment = SW[0] ? vgabuff[31:0] : (SW[1] ? built_number : (SW[3] ? reg_answer : state)); //32'h00FFFFFF;
 	
 	assign HEX0 [7] = 1'b1;
 	assign HEX1 [7] = 1'b1; 
