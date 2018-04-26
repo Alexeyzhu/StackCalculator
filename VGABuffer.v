@@ -6,14 +6,28 @@ module VGABuffer(
 	input [0:3] Token,
 	input strobe,
 	input clear,
-	output reg [0:384] buffer = 0
+	input ans_flag,
+	output reg [0:383] buffer
 );
 
+reg [9:0] index;
+initial
+begin
+	index = 383;
+	buffer = 384'hffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+end
+ 
 always@(posedge clk) begin
 	if (clear)
-		buffer <= 0;		
+	begin
+		buffer = 384'hffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;		
+		index = 383;
+	end
 	else if (strobe) begin								// If receiver enabled
-		buffer <= (buffer >> token_size) + Token;
+//		if (token == 4'hf)
+//			buffer = 0;
+		buffer[index -: 4] = Token;
+		index = index - 4;
 	end
 end
 

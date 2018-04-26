@@ -46,8 +46,8 @@ assign font_bit = font_word[~bit_addr];
 
 always@(*)
 begin
-if((y/16)*640 + x < maxInput * 2)
-case(numbers[(y/16*80) + ((x+1)/8)*4 +:4])
+if((y/16)*640 + x + 1 < maxInput * 2)
+case(numbers[((y/16*80) + ((x+1)/8))*4 +:4])
 
 	4'h0: char_addr <= 6'h30;
 	4'h1: char_addr <= 6'h31;
@@ -64,6 +64,7 @@ case(numbers[(y/16*80) + ((x+1)/8)*4 +:4])
 	4'hc: char_addr <= 6'h2a;
 	4'hd: char_addr <= 6'h2f;
 	4'he: char_addr <= 6'h3d;
+	4'hf: char_addr <= 6'h00;
 endcase
 
 else char_addr <= 6'h00;
